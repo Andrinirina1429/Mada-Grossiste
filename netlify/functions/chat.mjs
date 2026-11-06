@@ -13,9 +13,9 @@ const MAX_MESSAGE_LENGTH = 4000;
 function cleanHistory(history) {
   if (!Array.isArray(history)) return [];
   return history.slice(-MAX_HISTORY).map((item) => ({
-    role: item?.role === "assistant" ? "model" : "user",
-    parts: [{ text: String(item?.content || "").slice(0, 1500) }]
-  })).filter((item) => item.parts[0].text.trim());
+    role: item?.role === "assistant" ? "assistant" : "user",
+    content: String(item?.content || "").slice(0, 1500)
+  })).filter((item) => item.content.trim());
 }
 
 function cleanProducts(context) {
@@ -36,7 +36,7 @@ export const handler = async (event) => {
     return json(405, { error: "Méthode non autorisée. Utilisez POST." });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return json(503, { error: "Le service IA n'est pas configuré sur le serveur." });
   }
@@ -65,48 +65,45 @@ export const handler = async (event) => {
     ? `\n\nCatalogue disponible (données fournies par l'application) :\n${JSON.stringify(products)}`
     : "\n\nAucun produit du catalogue n'a été transmis pour cette question. Ne prétends pas avoir vérifié le catalogue.";
 
-  const contents = [
+  const messages = [
+    { role: "system", content: systemInstruction + productContext },
     ...cleanHistory(payload.history),
-    { role: "user", parts: [{ text: message }] }
+    { role: "user", content: message }
   ];
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const endpoint = "https://api.openai.com/v1/chat/completions";
 
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
       body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemInstruction + productContext }]
-        },
-        contents,
-        generationConfig: {
-          temperature: 0.35,
-          maxOutputTokens: 900
-        }
+        model,
+        messages,
+        max_completion_tokens: 900,
+        temperature: 0.35
       })
     });
 
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.error("Gemini API error:", response.status, result?.error?.message || "Unknown error");
+      console.error("OpenAI API error:", response.status, result?.error?.message || "Unknown error");
       return json(502, {
         error: "Le service IA est momentanément indisponible. Réessayez plus tard."
       });
     }
 
-    const reply = result?.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
-      .join("")
-      .trim();
+    const reply = result?.choices?.[0]?.message?.content?.trim();
 
     if (!reply) {
       return json(502, { error: "L'IA n'a pas renvoyé de réponse exploitable." });
     }
 
-    return json(200, { reply, provider: "Gemini", model });
+    return json(200, { reply, provider: "OpenAI", model });
   } catch (error) {
     console.error("Chat function error:", error?.message || error);
     return json(502, { error: "Impossible de joindre le service IA pour le moment." });
