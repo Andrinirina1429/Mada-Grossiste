@@ -47,6 +47,10 @@ et de stock bloquent la poursuite si le panier n’est pas conforme; le RPC de
 commande recalcule toujours prix et total à partir des prix stockés dans
 PostgreSQL et réserve le stock dans la même transaction. Les estimations de
 l’interface ne remplacent pas cette validation serveur.
+Le catalogue affiche un état de chargement pendant la lecture Supabase, puis
+conserve des états distincts en cas d’erreur, de catalogue vide ou de recherche
+sans résultat. Il inclut aussi un guide d’achat et un accès à l’espace vendeur,
+sans offres de démonstration ni contacts fictifs.
 Les demandes de devis sont privées aux acheteurs et vendeurs concernés. Un
 vendeur peut proposer le prix courant, un autre tarif ou refuser; l’acheteur
 voit le prix proposé et le total pour la quantité demandée. L’acceptation crée

@@ -32,11 +32,19 @@
     state.products = [];
     categories = [];
     CATS = [];
-    element.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><h3>Catalogue indisponible</h3><p>${escapeHtml(error?.message || 'Vérifiez la configuration Supabase et les politiques de lecture.')}</p><button class="btn btn-primary" onclick="loadSupabaseProducts()">Réessayer</button></div>`;
+    element.innerHTML = `<section class="empty catalog-state catalog-error" role="alert"><i class="fa-solid fa-triangle-exclamation"></i><h3>Catalogue momentanément indisponible</h3><p>Les offres de MadaGrossiste sont en cours de mise à jour. Merci de réessayer dans quelques instants.</p><button class="btn btn-primary" onclick="loadSupabaseProducts()">Réessayer</button></section>`;
+  }
+
+  function showCatalogLoading(element) {
+    element.innerHTML = `<section class="catalog-loading" aria-label="Chargement du catalogue" aria-busy="true">
+      <div class="sectionhead"><div><h2>Catalogue des produits</h2><p>Chargement des offres depuis Supabase…</p></div></div>
+      <div class="catalog-skeleton-grid">${Array.from({ length: 4 }, () => `<div class="catalog-skeleton" aria-hidden="true"><div class="catalog-skeleton-image"></div><div class="catalog-skeleton-line"></div><div class="catalog-skeleton-line short"></div><div class="catalog-skeleton-line"></div></div>`).join('')}</div>
+    </section>`;
   }
 
   window.loadSupabaseProducts = async function () {
     const element = document.getElementById('app');
+    if (state.view === 'catalog') showCatalogLoading(element);
     try {
       const client = requireSupabase();
       const [categoryResult, productResult] = await Promise.all([
@@ -112,7 +120,22 @@
       <select class="select" aria-label="Trier" onchange="sort=this.value;renderCatalog(document.getElementById('app'))"><option value="recent" ${sort === 'recent' ? 'selected' : ''}>Plus récents</option><option value="priceup" ${sort === 'priceup' ? 'selected' : ''}>Prix croissant</option><option value="pricedown" ${sort === 'pricedown' ? 'selected' : ''}>Prix décroissant</option><option value="name" ${sort === 'name' ? 'selected' : ''}>Nom A–Z</option></select></div>
       <div class="chips"><button class="chip ${category === 'Toutes' ? 'active' : ''}" onclick="category='Toutes';renderCatalog(document.getElementById('app'))">Toutes les catégories</button>${categories.map((item) => `<button class="chip ${category === item.name ? 'active' : ''}" onclick="category=${inlineJsArg(item.name)};renderCatalog(document.getElementById('app'))">${escapeHtml(item.name)}</button>`).join('')}</div>
       ${stores.length ? `<p class="muted">Vendeurs actifs : ${stores.map(escapeHtml).join(' · ')}</p>` : ''}
-      ${list.length ? `<div class="grid">${list.map((product) => productCard(product)).join('')}</div>` : `<div class="empty"><i class="fa-solid fa-box-open"></i><h3>${state.products.length ? 'Aucun résultat' : 'Le catalogue est vide'}</h3><p>${state.products.length ? 'Essayez un autre filtre.' : 'Les produits apparaîtront ici après leur publication par un vendeur approuvé.'}</p></div>`}`;
+      ${list.length ? `<div class="grid">${list.map((product) => productCard(product)).join('')}</div>` : `<div class="empty catalog-state"><i class="fa-solid ${state.products.length ? 'fa-magnifying-glass' : 'fa-box-open'}"></i><h3>${state.products.length ? 'Aucun produit ne correspond' : 'Le catalogue se prépare'}</h3><p>${state.products.length ? 'Essayez d’autres mots-clés ou modifiez les filtres de recherche.' : 'Les premières offres seront affichées ici dès leur publication.'}</p>${state.products.length ? `<button class="btn btn-light" onclick="mgResetCatalogFilters()">Réinitialiser la recherche</button>` : `<button class="btn btn-primary" onclick="go('seller')">Devenir vendeur</button><a class="btn btn-light" href="https://wa.me/261325297833?text=Bonjour%20MadaGrossiste%2C%20je%20souhaite%20devenir%20vendeur." target="_blank" rel="noopener noreferrer">Nous contacter</a>`}</div>`}
+      <section class="how-it-works"><div class="sectionhead"><div><h2>Comment ça marche ?</h2><p>Des étapes simples, avec les conditions de vente visibles avant la commande.</p></div></div><div class="how-steps">
+        <article class="how-step"><span>1</span><h3>Trouvez vos produits</h3><p>Recherchez dans le catalogue et comparez les offres réelles des vendeurs.</p></article>
+        <article class="how-step"><span>2</span><h3>Vérifiez les tarifs</h3><p>Consultez les prix par quantité, les minimums et la disponibilité affichée.</p></article>
+        <article class="how-step"><span>3</span><h3>Envoyez votre commande</h3><p>Le stock et les prix sont revérifiés par PostgreSQL; aucun paiement en ligne n’est prélevé ici.</p></article>
+      </div></section>
+      <section class="seller-invitation"><div><span class="eyebrow">Vous êtes vendeur ?</span><h2>Présentez vos offres aux commerçants.</h2><p>Créez un compte, demandez l’accès vendeur puis publiez vos produits après validation.</p></div><button class="btn btn-primary" onclick="go('seller')">Découvrir l’espace vendeur <i class="fa-solid fa-arrow-right"></i></button></section>`;
+  };
+
+  window.mgResetCatalogFilters = function () {
+    search = '';
+    category = 'Toutes';
+    sort = 'recent';
+    const headerSearch = document.getElementById('global-search-input');
+    if (headerSearch) headerSearch.value = '';
+    window.renderCatalog(document.getElementById('app'));
   };
 
   const priceForQuantity = (product, quantity) => {
