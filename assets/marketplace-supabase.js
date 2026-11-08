@@ -563,6 +563,95 @@
   const cartTotal = () => cartProductRows()
     .reduce((sum, item) => sum + priceForQuantity(item.product, item.quantity) * item.quantity, 0);
 
+  window.submitOrderAndNotifyWhatsApp = async function (customerData, cartItems) {
+    if (!userId()) throw new Error('Connectez-vous pour envoyer une commande.');
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      throw new Error('Votre panier est vide.');
+    }
+
+    const customer = {
+      name: String(customerData?.name || '').trim(),
+      phone: String(customerData?.phone || '').trim(),
+      city: String(customerData?.city || '').trim()
+    };
+    if (!customer.name || !customer.phone || !customer.city) {
+      throw new Error('Le nom, le téléphone et la ville sont requis.');
+    }
+    if (!validPhone(customer.phone)) {
+      throw new Error('Numéro invalide. Exemple : 034 12 345 67');
+    }
+
+    const orderItems = cartItems.map((item) => ({
+      product_id: item.product_id,
+      product_title: String(item.product_title || '').trim(),
+      unit_price: Number(item.unit_price),
+      quantity: Number(item.quantity)
+    }));
+    if (orderItems.some((item) => !item.product_id || !item.product_title
+      || !Number.isFinite(item.unit_price) || item.unit_price <= 0
+      || !Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      throw new Error('Un article du panier est invalide. Vérifiez le panier puis réessayez.');
+    }
+
+    const totalAmount = orderItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
+    const client = requireSupabase();
+    const { data: order, error: orderError } = await client.from('orders').insert({
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      destination_city: customer.city,
+      total_amount: totalAmount,
+      status: 'en_attente_validation',
+      notes: String(customerData?.notes || '').trim() || null
+    }).select('id').single();
+    if (orderError) throw orderError;
+    if (!order?.id) throw new Error('Supabase n’a pas confirmé la création de la commande.');
+
+    const { error: itemsError } = await client.from('order_items').insert(orderItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.product_id,
+      product_title: item.product_title,
+      unit_price: item.unit_price,
+      quantity: item.quantity
+    })));
+    if (itemsError) {
+      const { error: cleanupError } = await client.from('orders').delete().eq('id', order.id);
+      if (cleanupError) {
+        console.error('Articles non enregistrés et suppression de la commande impossible:', cleanupError);
+        throw new Error(`Les articles n’ont pas été enregistrés. La commande ${order.id} existe encore ; contactez le support avant de réessayer.`);
+      }
+      throw itemsError;
+    }
+
+    const summary = orderItems.map((item) =>
+      `- ${item.product_title} × ${item.quantity} : ${money(item.unit_price * item.quantity)}`
+    ).join('\n');
+    const message = [
+      'Bonjour MadaGrossiste, je souhaite confirmer ma commande.',
+      `Client : ${customer.name}`,
+      `Téléphone : ${customer.phone}`,
+      `Ville : ${customer.city}`,
+      'Articles :',
+      summary,
+      `Total estimé : ${money(totalAmount)}`
+    ].join('\n');
+
+    try {
+      const { data: remoteCart, error: cartError } = await client.from('carts')
+        .select('id').eq('buyer_id', userId()).eq('status', 'active').maybeSingle();
+      if (cartError) throw cartError;
+      if (remoteCart) {
+        const { error: clearError } = await client.from('cart_items').delete().eq('cart_id', remoteCart.id);
+        if (clearError) throw clearError;
+      }
+    } catch (error) {
+      console.error('Commande enregistrée, mais vidage du panier distant impossible:', error);
+      notify('Commande enregistrée, mais le panier distant n’a pas pu être vidé.');
+    }
+    state.cart = {};
+    window.mgResetRemoteCart?.();
+    window.location.assign(`https://wa.me/261325297833?text=${encodeURIComponent(message)}`);
+  };
+
   window.renderCart = function (element) {
     const items = cartProductRows();
     if (!items.length) {
@@ -1047,6 +1136,8 @@
     }
     const items = cartRows.map(({ product, quantity }) => ({
       product_id: product.id,
+      product_title: product.name,
+      unit_price: priceForQuantity(product, quantity),
       quantity
     }));
     if (!items.length) return go('cart');
@@ -1055,28 +1146,15 @@
     const form = event.currentTarget;
     setFormBusy(form, true, 'Enregistrement en cours…');
     try {
-      const { data, error } = await requireSupabase().rpc('mg_place_order', {
-        p_buyer_name: document.getElementById('buyerName').value.trim(),
-        p_phone: phone,
-        p_city: document.getElementById('buyerCity').value.trim(),
-        p_delivery: document.getElementById('delivery').value,
-        p_note: document.getElementById('buyerNote').value.trim(),
-        p_items: items
-      });
-      if (error) throw error;
-      if (!Array.isArray(data?.orders) || data.orders.length === 0) {
-        throw new Error('Supabase n’a pas confirmé la création de la commande.');
-      }
-      state.cart = {};
-      window.mgResetRemoteCart?.();
-      go('orders');
-      notify(`Commande enregistrée dans Supabase (${data.orders.length} vendeur(s)).`);
-      try {
-        await window.loadSupabaseProducts();
-      } catch (refreshError) {
-        console.error('Commande enregistrée, mais actualisation du stock impossible:', refreshError);
-        notify('Commande enregistrée dans Supabase. Le stock affiché sera actualisé lors du prochain chargement.');
-      }
+      await window.submitOrderAndNotifyWhatsApp({
+        name: document.getElementById('buyerName').value,
+        phone,
+        city: document.getElementById('buyerCity').value,
+        notes: [
+          document.getElementById('delivery').value,
+          document.getElementById('buyerNote').value.trim()
+        ].filter(Boolean).join('\n')
+      }, items);
     } catch (error) {
       console.error('Création de commande impossible:', error);
       notify(error.message || 'Impossible de transmettre la commande.');
