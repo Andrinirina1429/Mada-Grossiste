@@ -21,10 +21,9 @@ export const handler = async (event) => {
     return json(405, { error: "Method not allowed." });
   }
 
-  // .trim() supprime automatiquement les espaces en trop copiés par erreur
   const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
-  const key = (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || "").trim();
-  
+  const key = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "").trim();
+
   let validUrl = false;
   try {
     const parsed = new URL(supabaseUrl);
@@ -33,7 +32,9 @@ export const handler = async (event) => {
     validUrl = false;
   }
 
-  const validPublicKey = key.startsWith("sb_publishable_") || jwtRole(key) === "anon";
+  // Accepte les clés au format standard JWT (eyJ...) et sb_publishable_
+  const validPublicKey = key.startsWith("eyJ") || key.startsWith("sb_publishable_") || jwtRole(key) === "anon";
+
   if (!validUrl || !validPublicKey || key.startsWith("sb_secret_")) {
     console.error("Supabase public configuration is missing or invalid.");
     return json(503, { error: "Supabase public configuration is unavailable." });
