@@ -21,8 +21,10 @@ export const handler = async (event) => {
     return json(405, { error: "Method not allowed." });
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || "";
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || "";
+  // .trim() supprime automatiquement les espaces en trop copiés par erreur
+  const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
+  const key = (process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || "").trim();
+  
   let validUrl = false;
   try {
     const parsed = new URL(supabaseUrl);
