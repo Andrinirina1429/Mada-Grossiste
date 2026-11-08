@@ -1,15 +1,13 @@
--- 1. Table des profils clients (Acheteurs)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    full_name TEXT NOT NULL,
-    phone_number TEXT NOT NULL,
-    city TEXT NOT NULL,
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    full_name TEXT NOT NULL DEFAULT '',
+    phone_number TEXT NOT NULL DEFAULT '',
+    city TEXT NOT NULL DEFAULT '',
     subscription_status TEXT NOT NULL DEFAULT 'en_attente_5000ar',
     role TEXT NOT NULL DEFAULT 'buyer'
 );
 
--- 2. Table des produits
 CREATE TABLE IF NOT EXISTS public.products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -29,14 +27,13 @@ CREATE TABLE IF NOT EXISTS public.products (
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     moderation_status TEXT NOT NULL DEFAULT 'draft',
     moderation_note TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- 3. Table des commandes
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     customer_name TEXT NOT NULL,
     customer_phone TEXT NOT NULL,
     destination_city TEXT NOT NULL,
@@ -45,26 +42,53 @@ CREATE TABLE IF NOT EXISTS public.orders (
     notes TEXT
 );
 
--- 4. Table des détails de commande (Articles du panier)
 CREATE TABLE IF NOT EXISTS public.order_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE NOT NULL,
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
     product_title TEXT NOT NULL,
     unit_price NUMERIC(12, 2) NOT NULL,
     quantity INT NOT NULL DEFAULT 1
 );
 
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.profiles (id, full_name, phone_number, city)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', ''),
+        COALESCE(NEW.raw_user_meta_data ->> 'phone', ''),
+        COALESCE(NEW.raw_user_meta_data ->> 'city', '')
+    );
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Utilisateurs lisent leur profil" ON public.profiles;
 CREATE POLICY "Utilisateurs lisent leur profil"
-ON public.profiles FOR SELECT
-USING (auth.uid() = id);
+    ON public.profiles FOR SELECT TO authenticated
+    USING ((SELECT auth.uid()) = id);
 
+DROP POLICY IF EXISTS "Utilisateurs créent leur profil" ON public.profiles;
 CREATE POLICY "Utilisateurs créent leur profil"
-ON public.profiles FOR INSERT
-WITH CHECK (auth.uid() = id);
+    ON public.profiles FOR INSERT TO authenticated
+    WITH CHECK ((SELECT auth.uid()) = id);
 
+DROP POLICY IF EXISTS "Utilisateurs modifient leur profil" ON public.profiles;
 CREATE POLICY "Utilisateurs modifient leur profil"
-ON public.profiles FOR UPDATE
-USING (auth.uid() = id);
+    ON public.profiles FOR UPDATE TO authenticated
+    USING ((SELECT auth.uid()) = id)
+    WITH CHECK ((SELECT auth.uid()) = id);
