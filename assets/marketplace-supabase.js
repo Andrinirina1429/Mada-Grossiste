@@ -1283,6 +1283,10 @@
       const { data, error } = await requireSupabase().from('profiles')
         .select('public_phone_consent').eq('id', session.id).single();
       if (error) throw error;
+      if (!data) {
+        console.warn('Profil indisponible pour le consentement téléphonique.');
+        return null;
+      }
 
       const panel = document.createElement('section');
       panel.className = 'panel';
@@ -1320,8 +1324,8 @@
         }
       });
     } catch (error) {
-      console.error('Chargement du consentement téléphone impossible:', error);
-      notify(error.message || 'Impossible de charger votre choix de confidentialité.');
+      console.warn('Chargement du consentement téléphone impossible:', error);
+      return null;
     }
   };
 
