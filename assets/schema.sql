@@ -54,3 +54,17 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     unit_price NUMERIC(12, 2) NOT NULL,
     quantity INT NOT NULL DEFAULT 1
 );
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Utilisateurs lisent leur profil"
+ON public.profiles FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Utilisateurs créent leur profil"
+ON public.profiles FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Utilisateurs modifient leur profil"
+ON public.profiles FOR UPDATE
+USING (auth.uid() = id);
