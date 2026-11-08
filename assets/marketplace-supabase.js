@@ -8,6 +8,23 @@
   const money = (value) => Math.round(Number(value) || 0).toLocaleString('fr-FR') + ' Ar';
   const userId = () => state.session?.id || null;
   let sellerProducts = [];
+  async function getAuthenticatedUserId() {
+    const auth = mgSupabase?.auth;
+    if (!auth) return null;
+
+    if (typeof auth.getSession === 'function') {
+      const { data, error } = await auth.getSession();
+      if (error) console.warn('Vérification de la session Supabase impossible:', error);
+      if (data?.session?.user?.id) return data.session.user.id;
+    }
+
+    if (typeof auth.user === 'function') {
+      const user = await auth.user();
+      if (user?.id) return user.id;
+    }
+    return null;
+  }
+
   const setBusy = (busy) => {
     const form = document.getElementById('product-form');
     if (!form) return;
@@ -1246,9 +1263,20 @@
 
   const renderSeller = window.renderSeller;
   window.renderSeller = async function (element) {
+    let authenticatedUserId = null;
+    try {
+      authenticatedUserId = await getAuthenticatedUserId();
+    } catch (error) {
+      console.warn('Vérification de la session Supabase impossible:', error);
+    }
+    if (!authenticatedUserId || state.session?.id !== authenticatedUserId) {
+      state.session = null;
+    }
+
     await renderSeller(element);
     const session = state.session;
-    if (!session || (session.role !== 'seller'
+    if (!authenticatedUserId || !session || session.id !== authenticatedUserId
+      || (session.role !== 'seller'
       && !(session.requested_role === 'seller' && session.seller_status === 'pending'))) return;
 
     try {
