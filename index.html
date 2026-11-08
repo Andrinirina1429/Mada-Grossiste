@@ -269,16 +269,19 @@ function registerForm(){return `<form onsubmit="register(event)"><div class="fie
 function loginForm(){return `<form onsubmit="login(event)" class="formgrid"><label class="field full">Adresse e-mail<input id="lemail" required type="email" autocomplete="email" placeholder="vous@exemple.com"></label><label class="field full">Mot de passe<input id="lpass" required type="password" autocomplete="current-password" placeholder="Votre mot de passe"></label><div class="field full"><button class="btn btn-primary w-full" type="submit">Se connecter <i class="fa-solid fa-arrow-right"></i></button></div><p class="muted field full">Votre compte est enregistré en ligne : vous pourrez vous connecter depuis un autre appareil avec le même e-mail et mot de passe.</p></form>`}
 // Connexion Supabase pour l'inscription et la connexion des comptes MadaGrossiste.
 // La clé publishable/anon est destinée au navigateur ; ne jamais mettre ici une clé service_role.
-// La configuration publique est fournie par Netlify ; aucun secret Supabase n'est embarqué dans le navigateur.
+// La configuration publique est définie dans window.ENV ; aucune clé secrète Supabase ne doit être exposée ici.
 let mgSupabase = null;
 async function initSupabase(){
   if(location.protocol==='file:')return;
   try{
-    const response=await fetch('/api/config',{headers:{Accept:'application/json'},cache:'no-store'});
-    const config=await response.json().catch(()=>({}));
-    if(!response.ok||!config.supabaseUrl||!config.supabasePublishableKey)throw new Error(config.error||'Configuration Supabase manquante.');
-    if(config.supabasePublishableKey.startsWith('sb_secret_'))throw new Error('Une clé secrète a été refusée côté navigateur.');
-    mgSupabase=window.supabase.createClient(config.supabaseUrl,config.supabasePublishableKey,{
+    const config=window.ENV;
+    const supabaseUrl=config?.SUPABASE_URL;
+    const supabaseKey=config?.SUPABASE_ANON_KEY;
+    if(typeof supabaseUrl!=='string'||!supabaseUrl.trim()||typeof supabaseKey!=='string'||!supabaseKey.trim()){
+      throw new Error('window.ENV.SUPABASE_URL et window.ENV.SUPABASE_ANON_KEY sont requis.');
+    }
+    if(supabaseKey.startsWith('sb_secret_'))throw new Error('Une clé secrète a été refusée côté navigateur.');
+    mgSupabase=window.supabase.createClient(supabaseUrl.trim(),supabaseKey.trim(),{
       auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
     });
     loadSupabaseProducts().catch(error=>console.error('Chargement Supabase initial impossible:',error));
@@ -295,7 +298,7 @@ async function initSupabase(){
         }
       },0);
     });
-  }catch(error){console.error('Initialisation Supabase impossible:',error?.message||error);notify('Supabase n’est pas configuré. Vérifiez les variables publiques dans Netlify.');}
+  }catch(error){console.error('Initialisation Supabase impossible:',error?.message||error);}
 }
 // Charge les catégories et produits actifs du nouveau catalogue Supabase.
 async function loadSupabaseProducts(){
@@ -357,7 +360,7 @@ async function mgSessionFromUser(user){
 }
 async function register(e){
  e.preventDefault();
-  if(!mgSupabase)return notify('L’inscription en ligne est indisponible : configuration Supabase à vérifier.');
+  if(!mgSupabase)return notify('L’inscription en ligne est momentanément indisponible.');
  const name=document.getElementById('rname').value.trim();
  const shop=document.getElementById('rshop').value.trim();
  const phone=document.getElementById('rphone').value.trim();
@@ -392,7 +395,7 @@ async function register(e){
 }
 async function login(e){
  e.preventDefault();
-  if(!mgSupabase)return notify('La connexion en ligne est indisponible : configuration Supabase à vérifier.');
+  if(!mgSupabase)return notify('La connexion en ligne est momentanément indisponible.');
  const email=document.getElementById('lemail').value.trim().toLowerCase();
  const pass=document.getElementById('lpass').value;
  try{
@@ -664,7 +667,6 @@ try{if(!localStorage.getItem(INTRO_KEY))showIntro()}catch(e){showIntro()}
     'Formats acceptés : PNG, JPEG, WebP, GIF ou AVIF.':'Endrika azo ampiasaina: PNG, JPEG, WebP, GIF na AVIF.',
     'Demande enregistrée dans ce navigateur. Elle n’a pas encore été transmise au vendeur.':'Voatahiry amin’ity fitaovana ity ny fangatahana, saingy mbola tsy nalefa tamin’ny mpivarotra.',
     'Offre activée dans l’aperçu local de cet appareil.':'Naseho tao amin’ny topimaso eto amin’ity fitaovana ity ny tolotra.',
-    'Supabase n’est pas configuré. Vérifiez les variables publiques dans Netlify.':'Tsy voalamina ny Supabase. Hamarino ao amin’ny Netlify ny fanovana ilaina.',
     'Retirer':'Hanaisotra','Commandes reçues':'Baiko voaray','Déconnexion':'Hivoaka',
     'Voir vos demandes.':'Hijery ny fangatahanao.','Mon espace vendeur':'Ny faritry ny mpivarotra',
     'Gérer mes offres.':'Hitantana ny tolotrako.','Administration':'Fitantanana',

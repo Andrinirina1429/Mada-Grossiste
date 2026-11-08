@@ -1,5 +1,5 @@
 [build]
-  publish = "."
+  functions = "netlify/functions"
 
 [[headers]]
   for = "/*"
@@ -9,17 +9,12 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-[functions]
-  directory = "netlify/functions"
-
 [[redirects]]
   from = "/api/config"
   to = "/.netlify/functions/config"
   status = 200
-  force = true
 
 [[redirects]]
   from = "/api/chat"
   to = "/.netlify/functions/chat"
   status = 200
-  force = true
