@@ -106,26 +106,22 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .quick-action span{min-width:0;display:grid;gap:4px}
 .quick-action b{font-size:12px}
 .quick-action small{font-size:10px;line-height:1.4;color:var(--muted)}
-.mg-baobab-card{margin:14px 0 0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#f5f7f2}
-.mg-baobab-card img{display:block;width:100%;height:auto;aspect-ratio:1235/848;object-fit:contain}
-.mg-baobab-card figcaption{padding:9px 12px;color:var(--forest);font-size:11px;font-weight:700}
-.mg-account-heading{align-items:center}
-.mg-account-logo{display:block;width:84px;height:112px;flex:0 0 84px;object-fit:contain;border-radius:10px;box-shadow:0 4px 14px #073b2d16}
-@media(min-width:641px) and (max-width:760px){.mg-account-logo{width:116px;height:155px;flex-basis:116px}}
-@media(min-width:761px){.mg-account-heading h2{font-size:clamp(24px,2.2vw,32px)}.mg-account-heading p{font-size:14px}.mg-account-logo{width:clamp(150px,16vw,230px);height:auto;aspect-ratio:896/1195;flex-basis:clamp(150px,16vw,230px)}}
-@media(min-width:761px) and (max-width:1023px){.mg-account-logo{width:clamp(130px,18vw,165px);flex-basis:clamp(130px,18vw,165px)}}
+.brand-logo{display:block;width:43px;height:48px;flex:0 0 43px;object-fit:contain;border-radius:8px;background:#fff}
+.footer-logo .brand-logo{width:38px;height:42px;flex-basis:38px}
+.hero-baobab{display:block;width:100%;max-width:280px;height:auto;aspect-ratio:1235/848;object-fit:cover;border-radius:14px;box-shadow:0 12px 30px #07172530}
+@media(max-width:760px){.hero-art{display:grid;min-height:145px}.hero-baobab{max-width:230px}}
 @media(max-width:640px){.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.quick-action{padding:11px;gap:9px}.quick-action>i{width:40px;height:40px;flex-basis:40px}}
 </style>
 </head>
 <body>
 <header class="top"><div class="shell topin">
-<a class="brand" href="#" onclick="go('catalog');return false"><span class="mark">MG</span><span><span class="brandname">Mada<span>Grossiste</span></span><span class="tagline block">LA MARKETPLACE DES COMMERÇANTS</span></span></a>
+<a class="brand" href="#" onclick="go('catalog');return false"><img class="brand-logo" src="assets/logo-madagrossiste.jfif" alt="Logo MadaGrossiste"><span><span class="brandname">Mada<span>Grossiste</span></span><span class="tagline block">LA MARKETPLACE DES COMMERÇANTS</span></span></a>
 <form class="global-search" role="search" onsubmit="event.preventDefault();document.getElementById('global-search-input').blur()"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="global-search-input" aria-label="Rechercher dans le catalogue" placeholder="Produit, catégorie, vendeur…" oninput="setSearch(this.value,true)"><button type="submit" aria-label="Lancer la recherche"><i class="fa-solid fa-arrow-right"></i></button></form>
 <nav class="toplinks" id="toplinks"></nav>
 <div class="header-actions"><button class="iconbtn" aria-label="Ouvrir le panier" onclick="go('cart')"><i class="fa-solid fa-bag-shopping"></i><span id="cartcount" class="count hidden">0</span></button><button class="btn btn-lime hidden sm:inline-flex" onclick="go('account')">Mon espace <i class="fa-solid fa-arrow-right"></i></button></div>
 </div></header>
 <main id="app" class="shell"></main>
-<footer class="site-footer"><div class="shell footer-grid"><div class="footer-brand"><a class="footer-logo" href="#" onclick="go('catalog');return false"><span class="mark">MG</span><span>MadaGrossiste</span></a><p>Le commerce professionnel, connecté à Madagascar.</p><a class="footer-contact" href="https://wa.me/261325297833" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Contacter l’équipe</a></div><nav class="footer-links" aria-label="Navigation marketplace"><h2>Marketplace</h2><button type="button" onclick="go('catalog')">Catalogue</button><button type="button" onclick="go('seller')">Vendre</button><button type="button" onclick="go('account')">Mon compte</button><button type="button" onclick="go('orders')">Mes commandes</button></nav><nav class="footer-links" aria-label="Informations légales"><h2>Informations</h2><button type="button" onclick="showLegal('terms')">Conditions d’utilisation</button><button type="button" onclick="showLegal('privacy')">Confidentialité</button></nav></div><div class="shell footer-bottom"><span>© MadaGrossiste · Madagascar</span><p>Confirmez prix, stock et livraison auprès du vendeur.</p></div></footer>
+<footer class="site-footer"><div class="shell footer-grid"><div class="footer-brand"><a class="footer-logo" href="#" onclick="go('catalog');return false"><img class="brand-logo" src="assets/logo-madagrossiste.jfif" alt="Logo MadaGrossiste"><span>MadaGrossiste</span></a><p>Le commerce professionnel, connecté à Madagascar.</p><a class="footer-contact" href="https://wa.me/261325297833" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-whatsapp"></i> Contacter l’équipe</a></div><nav class="footer-links" aria-label="Navigation marketplace"><h2>Marketplace</h2><button type="button" onclick="go('catalog')">Catalogue</button><button type="button" onclick="go('seller')">Vendre</button><button type="button" onclick="go('account')">Mon compte</button><button type="button" onclick="go('orders')">Mes commandes</button></nav><nav class="footer-links" aria-label="Informations légales"><h2>Informations</h2><button type="button" onclick="showLegal('terms')">Conditions d’utilisation</button><button type="button" onclick="showLegal('privacy')">Confidentialité</button></nav></div><div class="shell footer-bottom"><span>© MadaGrossiste · Madagascar</span><p>Confirmez prix, stock et livraison auprès du vendeur.</p></div></footer>
 <nav class="bottom"><div class="bottom-inner" id="bottomnav"></div></nav>
 <div id="toast" class="toast hidden" role="status"></div>
 <div id="modalback" class="modalback" onclick="if(event.target===this)closeModal()"><section class="modal"><div class="modalhead"><h3 id="modaltitle">Détails</h3><button class="close" onclick="closeModal()" aria-label="Fermer">×</button></div><div id="modalbody"></div></section></div>
@@ -156,7 +152,7 @@ const stores=Object.values(state.products.reduce((groups,p)=>{const name=(p.acti
 const recentProducts=list.filter(p=>p.createdAt&&Number.isFinite(Date.parse(p.createdAt))).sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)).slice(0,4);
 const hasActiveProducts=state.products.some(p=>p.active!==false);
 const categoriesList=[...new Set(state.products.filter(p=>p.active!==false).map(p=>p.category).filter(Boolean))];
-el.innerHTML=`<section class="hero"><div class="hero-inner"><div><span class="eyebrow">Marketplace B2B · Madagascar</span><h1>Le commerce de gros à Madagascar, plus facile à trouver.</h1><p>Découvrez les produits proposés sur MadaGrossiste et préparez vos achats professionnels.</p><div class="cta-row"><button class="btn btn-lime" onclick="document.getElementById('catalogue').scrollIntoView({behavior:'smooth'})">Voir les produits</button><button class="btn btn-light" onclick="go('seller')">Devenir vendeur</button></div><div class="trustrow"><span><i class="fa-solid fa-store"></i>Offres grossistes</span><span><i class="fa-solid fa-boxes-stacked"></i>Achats en quantité</span><span><i class="fa-solid fa-location-dot"></i>Madagascar</span></div></div><div class="hero-art"><span class="float-tag one"><i class="fa-solid fa-bag-shopping"></i> Achat professionnel</span><div class="hero-orb"><i class="fa-solid fa-boxes-stacked"></i></div><span class="float-tag two"><i class="fa-solid fa-leaf"></i> Commerce local</span></div></div></section>
+el.innerHTML=`<section class="hero"><div class="hero-inner"><div><span class="eyebrow">Marketplace B2B · Madagascar</span><h1>Le commerce de gros à Madagascar, plus facile à trouver.</h1><p>Découvrez les produits proposés sur MadaGrossiste et préparez vos achats professionnels.</p><div class="cta-row"><button class="btn btn-lime" onclick="document.getElementById('catalogue').scrollIntoView({behavior:'smooth'})">Voir les produits</button><button class="btn btn-light" onclick="go('seller')">Devenir vendeur</button></div><div class="trustrow"><span><i class="fa-solid fa-store"></i>Offres grossistes</span><span><i class="fa-solid fa-boxes-stacked"></i>Achats en quantité</span><span><i class="fa-solid fa-location-dot"></i>Madagascar</span></div></div><div class="hero-art"><span class="float-tag one"><i class="fa-solid fa-bag-shopping"></i> Achat professionnel</span><img class="hero-baobab" src="assets/baobab-madagascar.jfif" alt="Baobabs au bord de la mer à Madagascar"><span class="float-tag two"><i class="fa-solid fa-leaf"></i> Commerce local</span></div></div></section>
 ${recentProducts.length?`<section class="recent-shelf"><div class="sectionhead"><div><h2>Nouveautés</h2><p>Les dernières offres ajoutées au catalogue.</p></div></div><div class="grid">${recentProducts.map(productCard).join('')}</div></section>`:''}
 <div class="sectionhead" id="catalogue"><div><h2>Catalogue des produits</h2><p>Les offres réelles seront affichées après vérification de leur disponibilité.</p></div><button class="btn btn-light" onclick="go('seller')"><i class="fa-solid fa-plus"></i> Vendre</button></div>
 <div class="toolbar"><label class="searchbox"><i class="fa-solid fa-magnifying-glass"></i><input id="catalog-search-input" aria-label="Rechercher" placeholder="Produit, catégorie, vendeur…" value="${safe(search)}" oninput="setSearch(this.value)"></label><select class="select" aria-label="Trier" onchange="sort=this.value;renderCatalog(document.getElementById('app'))"><option value="recent" ${sort==='recent'?'selected':''}>Plus récents</option><option value="priceup" ${sort==='priceup'?'selected':''}>Prix croissant</option><option value="pricedown" ${sort==='pricedown'?'selected':''}>Prix décroissant</option><option value="name" ${sort==='name'?'selected':''}>Nom A–Z</option></select></div>
@@ -540,19 +536,6 @@ try{if(!localStorage.getItem(INTRO_KEY))showIntro()}catch(e){showIntro()}
  const mgOriginalLoadProducts=window.loadSupabaseProducts;
  const mgEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const mgUid=()=>state.session?.id||null;
- const mgUpdateAccountBranding=()=>{
-   if(mgUid())return;
-   const heading=Array.from(document.querySelectorAll('#app .sectionhead')).find(item=>item.querySelector('h2')?.textContent.includes('Rejoignez MadaGrossiste'));
-   if(heading&&!heading.querySelector('.mg-account-logo')){
-     heading.classList.add('mg-account-heading');
-     heading.insertAdjacentHTML('beforeend','<img class="mg-account-logo" src="assets/logo-madagrossiste.jfif" alt="Logo Brother King and Compagnie">');
-   }
-   const notice=Array.from(document.querySelectorAll('#app .notice')).find(item=>item.textContent.includes('Une confirmation par e-mail'));
-   if(notice)notice.outerHTML='<figure class="mg-baobab-card"><img src="assets/baobab-madagascar.jfif" alt="Baobabs au bord de la mer à Madagascar"><figcaption>Le baobab, symbole de Madagascar</figcaption></figure>';
- };
- const mgAccountObserver=new MutationObserver(mgUpdateAccountBranding);
- mgAccountObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
- mgUpdateAccountBranding();
  let mgRemoteCartId=null;
  let mgFeatureTab='favorites';
  let mgPendingMessageReceiver='';
