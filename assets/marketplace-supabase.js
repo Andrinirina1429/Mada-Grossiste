@@ -8,6 +8,7 @@
   const money = (value) => Math.round(Number(value) || 0).toLocaleString('fr-FR') + ' Ar';
   const userId = () => state.session?.id || null;
   let sellerProducts = [];
+  let sellerDashboardRequest = 0;
   async function getAuthenticatedUserId() {
     const auth = mgSupabase?.auth;
     if (!auth) return null;
@@ -1013,6 +1014,12 @@
       element.innerHTML = `<div class="panel"><h2 class="panel-title">Demander l’accès vendeur</h2><p class="muted mb-3">Votre boutique sera vérifiée par l’équipe avant toute publication.</p>${state.session.seller_rejection_reason ? `<p class="notice mb-3">${escapeHtml(state.session.seller_rejection_reason)}</p>` : ''}<form class="formgrid" onsubmit="submitSellerApplication(event)"><label class="field full">Nom de la boutique<input id="sellerShop" required minlength="2" maxlength="120" value="${escapeHtml(state.session.shop || '')}"></label><label class="field">Téléphone professionnel<input id="sellerPhone" type="tel" required value="${escapeHtml(state.session.phone || '')}"></label><label class="field">Ville / région<input id="sellerCity" required maxlength="120" value="${escapeHtml(state.session.city || '')}"></label><label class="field full">Activité principale<input id="sellerBusiness" maxlength="160" value="${escapeHtml(state.session.business || '')}"></label><label class="field full">Présentation de la boutique<textarea id="sellerAbout" rows="3" maxlength="3000">${escapeHtml(state.session.about || '')}</textarea></label><button class="btn btn-primary" type="submit">Envoyer la demande</button></form></div>`;
       return;
     }
+    const requestId = ++sellerDashboardRequest;
+    const sellerId = userId();
+    if (!sellerId) {
+      element.innerHTML = `<div class="empty" role="alert"><h3>Session expirée</h3><p>Reconnectez-vous pour charger les données de votre boutique.</p><button class="btn btn-primary" onclick="go('account')">Se connecter</button></div>`;
+      return;
+    }
     try {
       const greeting = state.session.shop
         ? `Bienvenue chez ${escapeHtml(state.session.shop)}`
@@ -1025,6 +1032,7 @@
           <div class="metric"><small>CA confirmé</small><b>${money(0)}</b></div>
         </div><div class="panel" role="status">Chargement de vos produits et commandes…</div>`;
       const client = requireSupabase();
+      console.log("User ID connecté:", sellerId);
       const [
         { data: products, error: productsError },
         { data: orders, error: ordersError },
@@ -1032,16 +1040,23 @@
         { data: dashboardStats, error: dashboardStatsError },
         { data: profile, error: profileError }
       ] = await Promise.all([
-        client.from('products').select(PRODUCT_COLUMNS).eq('seller_id', userId()).order('created_at', { ascending: false }),
+        client.from('products').select(PRODUCT_COLUMNS).eq('seller_id', sellerId).order('created_at', { ascending: false }),
         client.from('orders').select('id,order_number,status,buyer_name,phone,city,delivery,note,total,created_at,order_items!inner(id,product_name,unit_price,quantity,seller_id)')
-          .eq('order_items.seller_id', userId()).order('created_at', { ascending: false }),
+          .eq('order_items.seller_id', sellerId).order('created_at', { ascending: false }),
         client.from('quote_requests').select('id,buyer_id,product_id,requested_quantity,buyer_note,status,proposed_unit_price,seller_note,created_at,products(name)')
-          .eq('seller_id', userId()).order('created_at', { ascending: false }),
+          .eq('seller_id', sellerId).order('created_at', { ascending: false }),
         client.rpc('mg_seller_dashboard_stats'),
         state.session.role === 'seller'
-          ? client.from('profiles').select('shop_name,full_name').eq('id', userId()).maybeSingle()
+          ? client.from('profiles').select('shop_name,full_name').eq('id', sellerId).maybeSingle()
           : Promise.resolve({ data: null, error: null })
       ]);
+      const profileData = profile;
+      const productsData = products;
+      const ordersData = orders;
+      console.log("Profil récupéré:", profileData, profileError);
+      console.log("Produits récupérés:", productsData, productsError);
+      console.log("Commandes récupérées:", ordersData, ordersError);
+      if (requestId !== sellerDashboardRequest || state.view !== 'seller' || userId() !== sellerId) return;
       if (productsError) throw productsError;
       if (ordersError) throw ordersError;
       if (quotesError) throw quotesError;
@@ -1084,7 +1099,7 @@
         moderationStatus: row.moderation_status || 'draft',
         moderationNote: row.moderation_note || '', remote: true
       }));
-      const orderRows = (orders || []).filter((order) => order.order_items?.some((item) => item.seller_id === userId()));
+      const orderRows = (orders || []).filter((order) => order.order_items?.some((item) => item.seller_id === sellerId));
       const historyResult = orderRows.length
         ? await client.from('order_status_history')
           .select('id,order_id,actor_id,previous_status,new_status,created_at')
@@ -1117,7 +1132,7 @@
         <div class="panel mt-4"><h3 class="panel-title">Mes produits</h3>${rows.length ? rows.map((item) => `<div class="rowcard"><div style="flex:1;min-width:0"><b>${escapeHtml(item.name)}</b><p>${escapeHtml(item.categories?.name || '')} · Stock : ${item.stock} · Détail : ${money(item.price)}${item.wholesale_price == null ? '' : ` · Gros : ${money(item.wholesale_price)}`}</p><p class="muted">${item.selling_mode === 'both' ? 'Classique et gros' : item.selling_mode === 'classic' ? 'Classique' : 'Gros'} · Minimum gros : ${item.min_wholesale_qty} · ${item.moderation_status === 'pending' ? 'En modération' : item.moderation_status === 'rejected' ? 'Modifications demandées' : item.moderation_status === 'draft' ? 'Brouillon non soumis' : item.is_active ? 'Publié' : 'Désactivé'}${(tiersByProduct.get(item.id) || []).length ? ` · ${(tiersByProduct.get(item.id) || []).length} palier(s)` : ''}</p></div><div class="flex gap-2 flex-wrap"><button class="btn btn-light" onclick="openProduct('${item.id}')">Modifier</button><button class="btn ${item.is_active ? 'btn-light' : 'btn-primary'}" onclick="mgSetProductActive('${item.id}',${!item.is_active},this)">${item.is_active ? 'Désactiver' : item.moderation_status === 'approved' ? 'Republier' : 'Soumettre à modération'}</button><button class="btn btn-danger" onclick="deleteProduct('${item.id}')">Supprimer</button></div></div>`).join('') : `<div class="empty"><i class="fa-solid fa-box-open"></i><h3>Aucun produit dans votre catalogue</h3><p>Ajoutez votre première offre pour commencer à construire votre catalogue.</p><button class="btn btn-primary" onclick="openProduct()">Ajouter mon premier produit</button></div>`}</div>
         <div class="panel mt-4"><h3 class="panel-title">Demandes de devis reçues</h3>${quotes?.length ? quotes.map((quote) => `<article class="rowcard" style="flex-direction:column;align-items:stretch"><div class="flex justify-between"><b>${escapeHtml(quote.products?.name || 'Produit')}</b><span>${quote.requested_quantity} unité(s) · ${quote.status === 'pending' ? 'À traiter' : quote.status === 'responded' ? 'Proposition envoyée' : quote.status === 'accepted' ? 'Accepté et commandé' : quote.status === 'rejected' ? 'Refusé' : 'Annulé'}</span></div><p class="muted">${escapeHtml(quote.buyer_note || 'Aucune précision')} · ${new Date(quote.created_at).toLocaleString('fr-FR')}</p>${quote.proposed_unit_price != null ? `<p>Tarif proposé : ${money(quote.proposed_unit_price)} / unité · Total ${money(Number(quote.proposed_unit_price) * Number(quote.requested_quantity))}${quote.seller_note ? ` · ${escapeHtml(quote.seller_note)}` : ''}</p>` : ''}${quote.status === 'pending' ? `<div class="flex gap-2 flex-wrap"><button class="btn btn-light" type="button" onclick="mgOfferListedPrice('${quote.id}','${quote.product_id}',${quote.requested_quantity},this)">Proposer le tarif catalogue</button><button class="btn btn-danger" type="button" onclick="mgRejectQuote('${quote.id}',this)">Refuser</button></div><form class="formgrid" onsubmit="mgRespondToQuote(event,'${quote.id}')"><label class="field">Prix proposé (Ar / unité)<input name="unit_price" type="number" min="1" step="1" required></label><label class="field full">Conditions ou note<textarea name="note" rows="2" maxlength="2000" placeholder="Validité, livraison ou variantes"></textarea></label><button class="btn btn-primary" type="submit">Envoyer la proposition</button></form>` : ''}</article>`).join('') : '<p class="muted">Aucune demande de devis pour le moment.</p>'}</div>
         <div class="panel mt-4"><h3 class="panel-title">Commandes reçues</h3>${orderRows.length ? orderRows.map((order) => {
-          const ownItems = order.order_items.filter((item) => item.seller_id === userId());
+          const ownItems = order.order_items.filter((item) => item.seller_id === sellerId);
           const transitions = NEXT_ORDER_STATUSES[order.status] || [];
           const history = historyByOrder.get(order.id) || [];
           return `<article class="rowcard" style="flex-direction:column;align-items:stretch">
@@ -1134,6 +1149,7 @@
         }).join('') : '<div class="empty"><i class="fa-solid fa-clipboard-list"></i><h3>Aucune commande pour le moment</h3><p>Les commandes de vos produits apparaîtront ici.</p></div>'}</div>`;
     } catch (error) {
       console.error('Chargement de l’espace vendeur impossible:', error);
+      if (requestId !== sellerDashboardRequest || state.view !== 'seller' || userId() !== sellerId) return;
       element.innerHTML = `<div class="empty"><h3>Espace vendeur indisponible</h3><p>${escapeHtml(error.message || 'Vérifiez les autorisations Supabase.')}</p><button class="btn btn-light" onclick="renderSeller(document.getElementById('app'))">Réessayer</button></div>`;
     }
   };
@@ -1290,12 +1306,14 @@
 
   const renderSeller = window.renderSeller;
   window.renderSeller = async function (element) {
+    const requestedView = state.view;
     let authenticatedUserId = null;
     try {
       authenticatedUserId = await getAuthenticatedUserId();
     } catch (error) {
       console.warn('Vérification de la session Supabase impossible:', error);
     }
+    if (requestedView !== 'seller' || state.view !== 'seller') return;
     if (!authenticatedUserId || state.session?.id !== authenticatedUserId) {
       state.session = null;
     }
@@ -1305,11 +1323,13 @@
     if (!authenticatedUserId || !session || session.id !== authenticatedUserId
       || (session.role !== 'seller'
       && !(session.requested_role === 'seller' && session.seller_status === 'pending'))) return;
+    if (state.view !== 'seller') return;
 
     try {
       const { data, error } = await requireSupabase().from('profiles')
         .select('public_phone_consent').eq('id', session.id).single();
       if (error) throw error;
+      if (state.view !== 'seller' || state.session?.id !== authenticatedUserId) return;
       if (!data) {
         console.warn('Profil indisponible pour le consentement téléphonique.');
         return null;
