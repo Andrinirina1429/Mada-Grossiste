@@ -743,7 +743,7 @@
     document.getElementById('modaltitle').textContent = product ? 'Modifier le produit' : 'Ajouter un produit';
     document.getElementById('modalbody').innerHTML = `<form id="product-form" onsubmit="saveProduct(event,${inlineJsArg(product?.id || '')})" class="formgrid">
       <label class="field full">Nom du produit<input id="pname" required maxlength="120" value="${escapeHtml(product?.name || '')}"></label>
-      <label class="field full">Description<textarea id="pdescription" rows="3" maxlength="3000">${escapeHtml(product?.description || '')}</textarea></label>
+      <label class="field full">Description<textarea id="pdescription" rows="3" maxlength="3000" placeholder="Décrivez le produit, son état et ses caractéristiques.">${escapeHtml(product?.description || '')}</textarea></label>
       <label class="field">Catégorie<select id="pcat" required>${categories.map((item) => `<option value="${item.id}" ${item.id === product?.category_id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label>
       <label class="field">Mode de vente<select id="pmode" required onchange="mgProductModeChanged()">
         <option value="classic" ${product?.sellingMode === 'classic' ? 'selected' : ''}>Classique</option>
@@ -756,7 +756,7 @@
       <label class="field full">Paliers de prix de gros<input id="ptiers" maxlength="1000" value="${escapeHtml((product?.priceTiers || []).map((tier) => `${tier.quantity}:${tier.price}`).join(', '))}" placeholder="Ex. 10:9000, 25:8000"><small class="muted">Format quantité minimale : prix unitaire (Ar), séparés par des virgules. Maximum 20 paliers; chaque quantité doit atteindre le minimum de gros.</small></label>
       <label class="field">Stock disponible<input id="pstock" type="number" min="0" required value="${product?.stock ?? 0}"></label>
       <label class="field full">Tailles / variantes<input id="pvariants" maxlength="500" value="${escapeHtml(product?.variants || '')}"></label>
-      <label class="field full">Photo du produit<input id="pimagefile" type="file" accept="image/jpeg,image/png,image/webp,image/avif"><small class="muted">JPG, PNG, WebP ou AVIF — 5 Mo maximum. Les images sont stockées dans Supabase Storage.</small></label>
+      <label class="field full">Photo du produit<input id="pimagefile" type="file" accept="image/jpeg,image/png,image/webp,image/avif"><small class="muted">Choisissez une image sur votre téléphone ou votre ordinateur. JPG, PNG, WebP ou AVIF — 5 Mo maximum. Les images sont stockées dans Supabase Storage.</small></label>
       ${product?.image ? `<div class="field full"><img src="${escapeHtml(product.image)}" alt="Photo actuelle" style="max-width:180px;border-radius:10px"></div>` : ''}
       <div class="field full"><button class="btn btn-primary w-full" type="submit">${product ? 'Enregistrer les modifications' : 'Enregistrer comme brouillon'}</button></div></form>`;
     document.getElementById('modalback').classList.add('open');
@@ -1014,25 +1014,44 @@
       return;
     }
     try {
-      element.innerHTML = `<div class="panel" role="status">Chargement des produits, commandes et devis depuis PostgreSQL…</div>`;
+      const greeting = state.session.shop
+        ? `Bienvenue chez ${escapeHtml(state.session.shop)}`
+        : 'Bienvenue dans votre espace vendeur';
+      element.innerHTML = `<div class="sectionhead"><div><h2>${greeting}</h2><p>Vos indicateurs et vos opérations se mettent à jour depuis Supabase.</p></div><button class="btn btn-primary" disabled>Chargement…</button></div>
+        <div class="metricgrid" aria-busy="true">
+          <div class="metric"><small>Produits au catalogue</small><b>0</b></div>
+          <div class="metric"><small>Produits publiés</small><b>0</b></div>
+          <div class="metric"><small>Commandes reçues</small><b>0</b></div>
+          <div class="metric"><small>CA confirmé</small><b>${money(0)}</b></div>
+        </div><div class="panel" role="status">Chargement de vos produits et commandes…</div>`;
       const client = requireSupabase();
       const [
         { data: products, error: productsError },
         { data: orders, error: ordersError },
         { data: quotes, error: quotesError },
-        { data: dashboardStats, error: dashboardStatsError }
+        { data: dashboardStats, error: dashboardStatsError },
+        { data: profile, error: profileError }
       ] = await Promise.all([
         client.from('products').select(PRODUCT_COLUMNS).eq('seller_id', userId()).order('created_at', { ascending: false }),
-        client.from('orders').select('id,order_number,status,buyer_name,phone,city,delivery,note,total,created_at,order_items(id,product_name,unit_price,quantity,seller_id)')
-          .order('created_at', { ascending: false }),
+        client.from('orders').select('id,order_number,status,buyer_name,phone,city,delivery,note,total,created_at,order_items!inner(id,product_name,unit_price,quantity,seller_id)')
+          .eq('order_items.seller_id', userId()).order('created_at', { ascending: false }),
         client.from('quote_requests').select('id,buyer_id,product_id,requested_quantity,buyer_note,status,proposed_unit_price,seller_note,created_at,products(name)')
           .eq('seller_id', userId()).order('created_at', { ascending: false }),
-        client.rpc('mg_seller_dashboard_stats')
+        client.rpc('mg_seller_dashboard_stats'),
+        state.session.role === 'seller'
+          ? client.from('profiles').select('shop_name,full_name').eq('id', userId()).maybeSingle()
+          : Promise.resolve({ data: null, error: null })
       ]);
       if (productsError) throw productsError;
       if (ordersError) throw ordersError;
       if (quotesError) throw quotesError;
       if (dashboardStatsError) throw dashboardStatsError;
+      if (profileError) throw profileError;
+      const shopName = String(profile?.shop_name || '').trim();
+      const sellerName = String(profile?.full_name || '').trim();
+      const welcome = shopName
+        ? `Bienvenue chez ${escapeHtml(shopName)}`
+        : sellerName ? `Bonjour ${escapeHtml(sellerName)}` : 'Bienvenue dans votre espace vendeur';
       const metricKeys = [
         'published_products', 'out_of_stock_products', 'received_orders',
         'pending_orders', 'completed_orders', 'confirmed_revenue', 'pending_quotes'
@@ -1082,8 +1101,9 @@
 
       const attentionProducts = rows.filter((item) => !item.is_active || Number(item.stock) === 0
         || item.moderation_status !== 'approved');
-      element.innerHTML = `<div class="sectionhead"><div><h2>Espace vendeur</h2><p>Indicateurs et opérations chargés depuis PostgreSQL pour votre compte.</p></div><div class="flex gap-2 flex-wrap"><button class="btn btn-light" onclick="renderSeller(document.getElementById('app'))">Actualiser</button><button class="btn btn-primary" onclick="openProduct()">Ajouter un produit</button></div></div>
+      element.innerHTML = `<div class="sectionhead"><div><h2>${welcome}</h2><p>Indicateurs et opérations chargés depuis Supabase pour votre compte.</p></div><div class="flex gap-2 flex-wrap"><button class="btn btn-light" onclick="renderSeller(document.getElementById('app'))">Actualiser</button><button class="btn btn-primary" onclick="openProduct()">${rows.length ? 'Ajouter un produit' : 'Ajouter mon premier produit'}</button></div></div>
         <div class="metricgrid">
+          <div class="metric"><small>Produits au catalogue</small><b>${rows.length}</b></div>
           <div class="metric"><small>Produits publiés</small><b>${Number(dashboardStats.published_products)}</b></div>
           <div class="metric"><small>En rupture</small><b>${Number(dashboardStats.out_of_stock_products)}</b></div>
           <div class="metric"><small>Commandes reçues</small><b>${Number(dashboardStats.received_orders)}</b></div>
@@ -1094,7 +1114,7 @@
         </div>
         <p class="muted mb-4">* Somme des lignes de commandes confirmées, expédiées ou terminées; commandes annulées exclues.</p>
         <div class="panel"><h3 class="panel-title">Produits nécessitant une intervention</h3>${attentionProducts.length ? attentionProducts.map((item) => `<div class="rowcard"><div style="flex:1;min-width:0"><b>${escapeHtml(item.name)}</b><p class="muted">${item.moderation_status === 'pending' ? 'En attente de modération' : item.moderation_status === 'rejected' ? `Modifications demandées${item.moderation_note ? ` : ${escapeHtml(item.moderation_note)}` : ''}` : item.moderation_status === 'draft' ? 'Brouillon non soumis à modération' : item.stock === 0 ? 'Rupture de stock' : 'Offre désactivée'} · ${item.is_active ? 'Publié' : 'Non publié'}</p></div><button class="btn btn-light" onclick="openProduct('${item.id}')">Modifier</button>${!item.is_active ? `<button class="btn btn-primary" onclick="mgSetProductActive('${item.id}',true,this)">${item.moderation_status === 'approved' ? 'Republier' : 'Soumettre à modération'}</button>` : ''}</div>`).join('') : '<p class="muted">Aucun produit à traiter.</p>'}</div>
-        <div class="panel mt-4"><h3 class="panel-title">Mes produits</h3>${rows.length ? rows.map((item) => `<div class="rowcard"><div style="flex:1;min-width:0"><b>${escapeHtml(item.name)}</b><p>${escapeHtml(item.categories?.name || '')} · Stock : ${item.stock} · Détail : ${money(item.price)}${item.wholesale_price == null ? '' : ` · Gros : ${money(item.wholesale_price)}`}</p><p class="muted">${item.selling_mode === 'both' ? 'Classique et gros' : item.selling_mode === 'classic' ? 'Classique' : 'Gros'} · Minimum gros : ${item.min_wholesale_qty} · ${item.moderation_status === 'pending' ? 'En modération' : item.moderation_status === 'rejected' ? 'Modifications demandées' : item.moderation_status === 'draft' ? 'Brouillon non soumis' : item.is_active ? 'Publié' : 'Désactivé'}${(tiersByProduct.get(item.id) || []).length ? ` · ${(tiersByProduct.get(item.id) || []).length} palier(s)` : ''}</p></div><div class="flex gap-2 flex-wrap"><button class="btn btn-light" onclick="openProduct('${item.id}')">Modifier</button><button class="btn ${item.is_active ? 'btn-light' : 'btn-primary'}" onclick="mgSetProductActive('${item.id}',${!item.is_active},this)">${item.is_active ? 'Désactiver' : item.moderation_status === 'approved' ? 'Republier' : 'Soumettre à modération'}</button><button class="btn btn-danger" onclick="deleteProduct('${item.id}')">Supprimer</button></div></div>`).join('') : '<p class="muted">Aucun produit. Ajoutez votre première offre.</p>'}</div>
+        <div class="panel mt-4"><h3 class="panel-title">Mes produits</h3>${rows.length ? rows.map((item) => `<div class="rowcard"><div style="flex:1;min-width:0"><b>${escapeHtml(item.name)}</b><p>${escapeHtml(item.categories?.name || '')} · Stock : ${item.stock} · Détail : ${money(item.price)}${item.wholesale_price == null ? '' : ` · Gros : ${money(item.wholesale_price)}`}</p><p class="muted">${item.selling_mode === 'both' ? 'Classique et gros' : item.selling_mode === 'classic' ? 'Classique' : 'Gros'} · Minimum gros : ${item.min_wholesale_qty} · ${item.moderation_status === 'pending' ? 'En modération' : item.moderation_status === 'rejected' ? 'Modifications demandées' : item.moderation_status === 'draft' ? 'Brouillon non soumis' : item.is_active ? 'Publié' : 'Désactivé'}${(tiersByProduct.get(item.id) || []).length ? ` · ${(tiersByProduct.get(item.id) || []).length} palier(s)` : ''}</p></div><div class="flex gap-2 flex-wrap"><button class="btn btn-light" onclick="openProduct('${item.id}')">Modifier</button><button class="btn ${item.is_active ? 'btn-light' : 'btn-primary'}" onclick="mgSetProductActive('${item.id}',${!item.is_active},this)">${item.is_active ? 'Désactiver' : item.moderation_status === 'approved' ? 'Republier' : 'Soumettre à modération'}</button><button class="btn btn-danger" onclick="deleteProduct('${item.id}')">Supprimer</button></div></div>`).join('') : `<div class="empty"><i class="fa-solid fa-box-open"></i><h3>Aucun produit dans votre catalogue</h3><p>Ajoutez votre première offre pour commencer à construire votre catalogue.</p><button class="btn btn-primary" onclick="openProduct()">Ajouter mon premier produit</button></div>`}</div>
         <div class="panel mt-4"><h3 class="panel-title">Demandes de devis reçues</h3>${quotes?.length ? quotes.map((quote) => `<article class="rowcard" style="flex-direction:column;align-items:stretch"><div class="flex justify-between"><b>${escapeHtml(quote.products?.name || 'Produit')}</b><span>${quote.requested_quantity} unité(s) · ${quote.status === 'pending' ? 'À traiter' : quote.status === 'responded' ? 'Proposition envoyée' : quote.status === 'accepted' ? 'Accepté et commandé' : quote.status === 'rejected' ? 'Refusé' : 'Annulé'}</span></div><p class="muted">${escapeHtml(quote.buyer_note || 'Aucune précision')} · ${new Date(quote.created_at).toLocaleString('fr-FR')}</p>${quote.proposed_unit_price != null ? `<p>Tarif proposé : ${money(quote.proposed_unit_price)} / unité · Total ${money(Number(quote.proposed_unit_price) * Number(quote.requested_quantity))}${quote.seller_note ? ` · ${escapeHtml(quote.seller_note)}` : ''}</p>` : ''}${quote.status === 'pending' ? `<div class="flex gap-2 flex-wrap"><button class="btn btn-light" type="button" onclick="mgOfferListedPrice('${quote.id}','${quote.product_id}',${quote.requested_quantity},this)">Proposer le tarif catalogue</button><button class="btn btn-danger" type="button" onclick="mgRejectQuote('${quote.id}',this)">Refuser</button></div><form class="formgrid" onsubmit="mgRespondToQuote(event,'${quote.id}')"><label class="field">Prix proposé (Ar / unité)<input name="unit_price" type="number" min="1" step="1" required></label><label class="field full">Conditions ou note<textarea name="note" rows="2" maxlength="2000" placeholder="Validité, livraison ou variantes"></textarea></label><button class="btn btn-primary" type="submit">Envoyer la proposition</button></form>` : ''}</article>`).join('') : '<p class="muted">Aucune demande de devis pour le moment.</p>'}</div>
         <div class="panel mt-4"><h3 class="panel-title">Commandes reçues</h3>${orderRows.length ? orderRows.map((order) => {
           const ownItems = order.order_items.filter((item) => item.seller_id === userId());
@@ -1111,7 +1131,7 @@
               <p class="muted mt-2">Les prix historiques sont en lecture seule. Les changements de statut passent par le RPC sécurisé.</p>
             </details>
           </article>`;
-        }).join('') : '<p class="muted">Aucune commande reçue.</p>'}</div>`;
+        }).join('') : '<div class="empty"><i class="fa-solid fa-clipboard-list"></i><h3>Aucune commande pour le moment</h3><p>Les commandes de vos produits apparaîtront ici.</p></div>'}</div>`;
     } catch (error) {
       console.error('Chargement de l’espace vendeur impossible:', error);
       element.innerHTML = `<div class="empty"><h3>Espace vendeur indisponible</h3><p>${escapeHtml(error.message || 'Vérifiez les autorisations Supabase.')}</p><button class="btn btn-light" onclick="renderSeller(document.getElementById('app'))">Réessayer</button></div>`;
