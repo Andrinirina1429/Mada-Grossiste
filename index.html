@@ -90,6 +90,32 @@ button:disabled{cursor:not-allowed;opacity:.55}
 @media(max-width:380px){.admin-metrics{grid-template-columns:1fr}.admin-record .btn{width:100%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
+<style id="mg-home-shortcuts">
+:root{--forest:#073b2d;--green:#087f5b;--lime:#c8f169;--ink:#14231d;--muted:#6b7c74;--paper:#f5f7f2;--line:#e3eae1}
+.brand .mark{background:var(--lime);color:var(--forest)}
+.btn-primary{background:var(--forest)}
+.btn-primary:hover{background:#0b513c}
+.btn-lime{background:var(--lime);color:var(--forest)}
+.hero-orb{background:linear-gradient(145deg,#d8ff8d,#87cb53);color:#16452c}
+.quick-actions{margin:0 0 28px}
+.quick-actions .sectionhead{margin:0 0 12px}
+.quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.quick-action{min-width:0;display:flex;align-items:center;gap:12px;padding:14px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;color:var(--ink);box-shadow:0 3px 14px #073b2d08;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.quick-action:hover{transform:translateY(-2px);border-color:#b7d4be;box-shadow:0 8px 20px #073b2d12}
+.quick-action>i{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border-radius:12px;background:#edf8ec;color:var(--green);font-size:17px}
+.quick-action span{min-width:0;display:grid;gap:4px}
+.quick-action b{font-size:12px}
+.quick-action small{font-size:10px;line-height:1.4;color:var(--muted)}
+.mg-baobab-card{margin:14px 0 0;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#f5f7f2}
+.mg-baobab-card img{display:block;width:100%;height:auto;aspect-ratio:1235/848;object-fit:contain}
+.mg-baobab-card figcaption{padding:9px 12px;color:var(--forest);font-size:11px;font-weight:700}
+.mg-account-heading{align-items:center}
+.mg-account-logo{display:block;width:84px;height:112px;flex:0 0 84px;object-fit:contain;border-radius:10px;box-shadow:0 4px 14px #073b2d16}
+@media(min-width:641px) and (max-width:760px){.mg-account-logo{width:116px;height:155px;flex-basis:116px}}
+@media(min-width:761px){.mg-account-heading h2{font-size:clamp(24px,2.2vw,32px)}.mg-account-heading p{font-size:14px}.mg-account-logo{width:clamp(150px,16vw,230px);height:auto;aspect-ratio:896/1195;flex-basis:clamp(150px,16vw,230px)}}
+@media(min-width:761px) and (max-width:1023px){.mg-account-logo{width:clamp(130px,18vw,165px);flex-basis:clamp(130px,18vw,165px)}}
+@media(max-width:640px){.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.quick-action{padding:11px;gap:9px}.quick-action>i{width:40px;height:40px;flex-basis:40px}}
+</style>
 </head>
 <body>
 <header class="top"><div class="shell topin">
@@ -514,6 +540,19 @@ try{if(!localStorage.getItem(INTRO_KEY))showIntro()}catch(e){showIntro()}
  const mgOriginalLoadProducts=window.loadSupabaseProducts;
  const mgEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const mgUid=()=>state.session?.id||null;
+ const mgUpdateAccountBranding=()=>{
+   if(mgUid())return;
+   const heading=Array.from(document.querySelectorAll('#app .sectionhead')).find(item=>item.querySelector('h2')?.textContent.includes('Rejoignez MadaGrossiste'));
+   if(heading&&!heading.querySelector('.mg-account-logo')){
+     heading.classList.add('mg-account-heading');
+     heading.insertAdjacentHTML('beforeend','<img class="mg-account-logo" src="assets/logo-madagrossiste.jfif" alt="Logo Brother King and Compagnie">');
+   }
+   const notice=Array.from(document.querySelectorAll('#app .notice')).find(item=>item.textContent.includes('Une confirmation par e-mail'));
+   if(notice)notice.outerHTML='<figure class="mg-baobab-card"><img src="assets/baobab-madagascar.jfif" alt="Baobabs au bord de la mer à Madagascar"><figcaption>Le baobab, symbole de Madagascar</figcaption></figure>';
+ };
+ const mgAccountObserver=new MutationObserver(mgUpdateAccountBranding);
+ mgAccountObserver.observe(document.getElementById('app'),{childList:true,subtree:true});
+ mgUpdateAccountBranding();
  let mgRemoteCartId=null;
  let mgFeatureTab='favorites';
  let mgPendingMessageReceiver='';
